@@ -2,23 +2,20 @@
 
 #首次
 git init
-git clone git@35.160.46.145:/home/git/deploy.git
+git clone git@35.160.46.145:/home/git/deploy.git    #克隆远端仓库到本地
 
 #提交代码
 cd /e/WARSHIPS/my_git
-#add
-git add .
-#添加代码提交信息
-git commit -m 'sgame_opt_file.sh更新提交'
-#正式提交
-git push -u origin master
-#拉取代码到本地（pull）
-git pull
-git pull [remote] [branch]
+git add .                                    #add，临时提交，缓存你的修改
+git commit -m 'sgame_opt_file.sh更新提交'    #添加代码提交信息,提交到HEAD
+git push -u origin master					 #提交到远端仓库
+#加了参数-u后，以后即可直接用git push 代替git push origin master，- u其实是制定源origin，然后对应的任意分支branch或者master
 
-#正式环境
-git@35.160.46.145:/home/git/deploy.git
-#add_key
+
+#拉取代码
+git pull  #更新本地代码至最新
+#git pull [remote] [branch]
+
+#正式环境，add_key
 /home/git/.ssh/authorized_keys
-
-#git config --global color.ui true
+#git config --global color.ui true   #一些变量设置
