@@ -1,0 +1,61 @@
+
+新服：
+1. AWS后台购买服务器；
+2. 在服务器表格中加入新购的服务器信息；
+3. push更新好的服务器信息到git服务器；
+4. 进入git服务器的 cd /root/.deploy/deploy；
+5. fab -R World186 initGs（执行之前一定让开发上次最新的数据库初始化SQL，放到deploy-sgamez\template\server\SQL下）（新服的前一个服必须存在，因为服务器文件是从上一个服务器拷贝到新服）；
+6. 让网宿开相应端口
+7. 监控后台打开对网宿端口的监控
+8. 在客户端用s1账号进行登录新服。
+9. fab -R gm restartGm  #在添加新服和合服之后都需要执行
+
+
+
+版本更新：
+特别注意研发给的更新包日期，是否与当天更新的日期一致。不一致需要修改为当天更新的日期时间
+1. 在服务器信息表格中修改好分组（上午更新的、下午更新的、导量服）；
+2. push更新好的服务器信息到git服务器；
+3. 进入git服务器的 cd /root/.deploy/deploy；
+
+注意修改分组
+4. fab -PR pm2 stopGs  | tee /tmp/stopGs.`date +%Y%m%d_%H-%M`.log
+5. fab -PR pm2 deployGs| tee /tmp/deployGs.`date +%Y%m%d_%H-%M`.log
+6. fab -PR pm2 startGs | tee /tmp/startGs.`date +%Y%m%d_%H-%M`.log
+注意检查是否全部done。
+
+
+跨服更新：(跨服只有WorldServer.jar、GD、common.sql、CombineServer.gd具体视研发出包情况而定。不需要更新config。更新时间：合服更新完之后星期五之前)
+1. 在服务器信息表格中修改相应信息
+2. push更新好的服务器信息到git服务器
+3. 需要把本周更新的GD.zip、WorldServer.jar、common.sql、CombineServer.gd（合服的gd）拷贝到以更新当天日期为目录名的目录下
+4. 进入git服务器的 cd /root/.deploy/deploy；
+5. fab -R kf01 deployKf (循环执行所有跨服)    --注意检查是否全部done
+6. 分别进入各个跨服，cd /root/server/;sh start.sh
+
+需要单独更新时执行
+7. 更新跨服的gd并重启 fab -R kf01 pushKfgd，进入各个跨服进行手动重启 
+
+
+
+合服：
+1. 对需要合服的服务器停服（比如033 038合服）
+	fab -R World055 stopGs:merge=y
+	fab -R World067 stopGs:merge=y
+	合服停服过程中会检查两个状态，如果noBackNum小于10，在提示是否跳过的时候可以输入y，否则输入n）
+2. 对合服的realstage进行修改并push,在服务器上进行git pull   --停完服后在修改realstage列
+3. fab -R World055 mergeGs
+4. fab -R World055 startGs:merge=y
+5. 在目标数据库的common库 select use_type,sum(1) from world_land where land_y != 2047 group by use_type; -- 查看世界中城池和资源状态 只有这几个才正确0,4,7,8,9,101,500=30（需要等五六分钟左右）；
+合服状态的问题
+注意：合服未完成尽量不要让测试人员登录游戏服。建议通知测试人员测试时，再添加相应的IP白名单
+6. 在客户端用s1账号进行登录；
+7. 测试通过后，打开外网(玩家)访问
+8. fab -R gm restartGm   #在添加新服和合服之后都需要执行
+
+
+
+
+
+fabric服务器命令执行：
+fab  -PR pm -- "ps ef|grep java"

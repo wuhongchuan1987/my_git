@@ -1,0 +1,110 @@
+游戏服若需要在控制台重启，需要注意的是先停程序，再执行重启操作，其它业务服可以直接重启
+1.停游戏服
+ 执行游戏服下的 /root/server/stop.sh
+    salt -N group5 cmd.run "ifconfig eth0 |grep 'inet addr'"
+	
+	salt -N group5 cmd.run "/bin/sh /root/server/iptables_stop_port.sh"
+	
+	salt -N group5 cmd.run "/root/server/stop.sh all"
+	salt -N group5 cmd.run "ntpdate -u ntp.api.bz"
+	salt -N group5 cmd.run "ntpdate -u cn.ntp.org.cn"
+	
+
+2. 备份程序文件
+    salt -N group5 cmd.script salt://scripts/update_version/step2_backup.server.sh     //不要忘记备份程序
+
+
+	
+
+3. 复制和更新文件(在登陆服上：52.25.115.50[10.10.12.45])
+    (1)、将文件上传至/data/update/20180605      //由开发负责上传
+	
+	
+    
+	(2)、编辑/root/rsync/script/local_rsync.sh文件并执行命令sh local_rsync.sh
+	
+	
+	
+	(3)、修改rsync.sql.sh文件(若不需要更新数据库，此步骤可以省略)
+	     #mkdir /root/rsync/update/20170926
+	     #cp /root/song/20170926/common.sql /root/rsync/update/20170926
+	     #cp /root/song/20170926/warship.sql /root/rsync/update/20170926
+		 
+		 #salt -N group1 cmd.run "mkdir -pv /tmp/update"
+	     #salt -N group1 cmd.run "mkdir -pv /tmp/update/20180514"
+		 
+		 #vim /root/rsync/script/rsync.sql.sh
+	        # 24
+            /usr/bin/rsync -vau --progress  --exclude=GD  /root/rsync/update/20170815/      10.10.0.76:/tmp/update/20170815     #修改日期
+	
+	
+    (4)、sh /root/rsync/script/all_warship.sh
+	 GD开关：
+      #sed "s/\(.*delete.*\)/#\1/g" warship_game*.sh  -i             //加注释
+	  #sed "s/#\(.*delete.*\)/\1/g" warship_game*.sh  -i             //去注释
+	  
+	  JAR开关：
+	  #sed "s/\(.*exclude.*\)/#\1/g" warship_game*.sh  -i            //加注释
+	  #sed "s/#\(.*exclude.*\)/\1/g" warship_game*.sh -i             //去注释
+	 
+	 
+	 
+4. 修改配置文件(须要提交修改好change_config.sh脚本)
+    salt -N group5 cmd.script salt://scripts/update_version/step4_change_config.sh
+
+5. 更新数据库(如没有更新数据库操作,可不用执行此操作)
+    salt -N group5 cmd.script salt://scripts/update_version/step5_update_mysql.sh        #db.info
+
+    #!/bin/bash
+    db_file="/root/server/db.info"
+    datetime=20170727              //更改时间变量
+    
+    #mysql  -h${db_host} -u${db_user} -p${db_pwd}  ${db_warship1}         < /tmp/xxxx.sql
+    #mysql  -h${db_host} -u${db_user} -p${db_pwd}  ${db_warship1}       -e "show databases;"
+    
+    mysql  -h${db_host} -u${db_user} -p${db_pwd}  ${db_warship_common}   < /tmp/update/$datetime/common.sql           //注意库名
+    #mysql  -h${db_host} -u${db_user} -p${db_pwd}  ${db_warship_common} -e 'select count(*) from alliance_chat;'      //按需修改
+
+6. 启动游戏服
+
+    salt -N group5  cmd.run "/root/server/start.sh"    #如果有升/降配操作，则先启动不降配的服，并且需要修改相应的group组
+	
+	salt -N group5 cmd.run "/bin/sh /root/server/iptables_start_port.sh"
+	
+	
+7、更新跨服(jar+GD+sql,跨服只有common库,不需要更新config。更新时间：导量服更新完之后或星期五之前)
+(1)、停跨服
+#cd /root/server/
+#sh stop.sh all
+
+(2)、同步时间
+#ntpdate -u cn.ntp.org.cn
+#ntpdate -u ntp.api.bz
+
+(3)、备份跨服程序   
+#cp /root/server/ /data/backup/server_20180605 -rf
+
+(4)、有sql文件要先创建目录
+#mkdir /tmp/update/20180605 -p
+
+(5)、在登陆服上同步文件
+sh warship_kf.sh
+
+(6)、更新数据库
+#vim kf_warship_update_mysql.sh      #修改时间变量
+#sh kf_warship_update_mysql.sh 
+
+(7)、启动跨服程序
+#sh start.sh 
+
+
+更新数据库准备工作
+1、建立自动化组
+2、将song目录更新日期下的sql文件拷贝至/root/rsync/update/日期
+3、修改all_warship.sh rsync.sql.sh文件
+4、在游戏服下新建/tmp/update/日期目录(所有游戏服，包括导量服)
+5、执行all_warship.sh脚本
+5、修改step5_update_mysql.sh文件(注意日期、库名、操作选项等)
+
+	
+#1-100更新完成后。升级5服配置(r4.large-->r4.xlarge)后告知立成，并让他切换一下导量服。然后再更新99服，99服是group5。

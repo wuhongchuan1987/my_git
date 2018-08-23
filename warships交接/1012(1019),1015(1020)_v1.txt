@@ -1,0 +1,345 @@
+合服步骤(1015合并到1012)
+71服以后所用域名：warship-game.sgamez.com
+
+warship1012   52.40.190.254	10.10.5.78             
+warship1015   34.212.215.31	10.10.11.242           
+
+
+登录游戏客户端采用：IP+端口方式
+
+select * from common_config;
+select * from world_country;
+select count(1) from world_march where state < 100;
+select * from world_country_config;
+
+
+
+1、先打开防火墙限制访问，2分钟后使用gm调用使行军队列全部瞬间回城
+   主服：
+   iptables -t filter -I INPUT 1 -s 171.88.42.146/32 -p tcp --dport 10012 -j ACCEPT
+   iptables -t filter -I INPUT 2 -s 219.239.52.234/32 -p tcp --dport 10012 -j ACCEPT
+   
+   iptables -t filter -I INPUT 2 -s 118.116.15.17/32 -p tcp --dport 10012  -j ACCEPT
+   iptables -t filter -I INPUT 2 -s 222.211.163.95/32 -p tcp --dport 10012  -j ACCEPT
+   
+   iptables -t filter -I INPUT 3 -s 222.209.232.250/32 -p tcp --dport 10012  -j ACCEPT
+   iptables -t filter -I INPUT 3 -s 118.112.56.239/32 -p tcp --dport 10012  -j ACCEPT
+   
+   
+   iptables -t filter -I INPUT 3 -p tcp --dport 10012  -j DROP
+   
+   iptables -t filter -I INPUT 1 -m state --state NEW -j ACCEPT
+   
+   
+   次服：
+   iptables -t filter -I INPUT 1 -s 222.211.163.95/32 -p tcp --dport 10015 -j ACCEPT
+   iptables -t filter -I INPUT 2 -s 219.239.52.234/32 -p tcp --dport  10015 -j ACCEPT
+   
+   iptables -t filter -I INPUT 3 -s 222.211.162.140/32 -p tcp --dport 10015 -j ACCEPT
+   iptables -t filter -I INPUT 3 -s 118.116.121.242/32 -p tcp --dport 10015 -j ACCEPT
+   
+   iptables -t filter -I INPUT 3 -p tcp --dport 10015  -j DROP
+   
+   iptables -t filter -I INPUT 1 -m state --state NEW -j ACCEPT
+
+   1012服查看是否还有客户端的请求
+   tail -20f /data/log/log/1012/oper/2018-06-21.log 
+   没有请求的话等待2分钟后执行gm使行军队列全部瞬间回城 
+   telnet 127.0.0.1 20000 输入1 回车，输入2 回车  exit回车
+   select count(1) from world_march where state < 100; -- 查看行军是否全部回家          //common库
+   
+   1027服查看是否还有客户端的请求
+   tail -20f /data/log/log/1015/oper/2018-06-21.log 
+   没有请求的话等待2分钟后执行gm使行军队列全部瞬间回城
+   telnet 127.0.0.1 20000 输入1 回车，输入2 回车  exit回车
+   select count(1) from world_march where state < 100; -- 查看行军是否全部回家         //common库
+   
+   select FROM_UNIXTIME(create_time),t.* from world_march t where state < 100;         //查看异常队列(主次服的common库查询)   执行完上面的查看行军语句后
+   
+   停12、15服：sh stop.sh all
+   
+   
+2、对1012主服数据进行备份(数据库导入和导出操作，均在主服中完成)
+   mkdir /data/backup/mysql/;cd /data/backup/mysql/
+   mysqldump -u admin -p -hwarships-12.cluster-clriqpvebrn0.us-west-2.rds.amazonaws.com warship_12 > warship_12.sql;
+   mysqldump -u admin -p -hwarships-12.cluster-clriqpvebrn0.us-west-2.rds.amazonaws.com warship_common_12 --ignore-table=warship_common_12.fight_script --ignore-table=warship_common_12.world_march_finish > warship_common_12.sql;
+   删除一个就好了 delete from warship_12.role_item_cvequip where roleId = 0; --错误数据warship库
+
+3、导出1015次服需要合并到1022主服的数据(只有数据，没有结构)
+   删除一个就好了 delete from warship_15.role_item_cvequip where roleId = 0; --错误数据warship库
+   mysqldump -u admin -p -hwarships-11-1.cluster-clriqpvebrn0.us-west-2.rds.amazonaws.com -t warship_15 --ignore-table=warship_15.role_time_queue_finish --ignore-table=warship_15.tb_login_detail --ignore-table=warship_15.role_world_boss_cd > warship_15_data.sql;
+   mysqldump -u admin -p -hwarships-11-1.cluster-clriqpvebrn0.us-west-2.rds.amazonaws.com -t warship_common_15 --ignore-table=warship_common_15.alliance_chat --ignore-table=warship_common_15.translate_alliance_chat --ignore-table=warship_common_15.alliance_science_record --ignore-table=warship_common_15.event --ignore-table=warship_common_15.event_data --ignore-table=warship_common_15.promote_pay_ranking --ignore-table=warship_common_15.promote_pay_ranking_info --ignore-table=warship_common_15.ranking --ignore-table=warship_common_15.wonder_occupy_record --ignore-table=warship_common_15.fight_script --ignore-table=warship_common_15.world_boss --ignore-table=warship_common_15.world_boss_point --ignore-table=warship_common_15.world_boss_ranking --ignore-table=warship_common_15.world_country --ignore-table=warship_common_15.world_country_config --ignore-table=warship_common_15.world_land --ignore-table=warship_common_15.world_march --ignore-table=warship_common_15.world_march_finish --ignore-table=warship_common_15.power_7days_info --ignore-table=warship_common_15.power_7days_ranking --ignore-table=warship_common_15.power_7days_reward --ignore-table=warship_common_15.world_march_extend > warship_common_15_data.sql;
+
+4、导入1015服的数据到1012服
+   mysql -u admin -p'GX$%!2$a' -hwarships-12.cluster-clriqpvebrn0.us-west-2.rds.amazonaws.com warship_12 < warship_15_data.sql;
+   mysql -u admin -p'GX$%!2$a' -hwarships-12.cluster-clriqpvebrn0.us-west-2.rds.amazonaws.com warship_common_12 < warship_common_15_data.sql;
+   
+   还原：若次服数据库导入失败，需重新还原主库的数据
+   mysql -u admin -p -hwarships-12.cluster-clriqpvebrn0.us-west-2.rds.amazonaws.com warship_12 < warship_12.sql;
+   mysql -u admin -p -hwarships-12.cluster-clriqpvebrn0.us-west-2.rds.amazonaws.com warship_common_12 < warship_common_12.sql;
+    
+5、删除1012主服中合并后的服务器中的冲突数据
+   warship库：
+   truncate table role_book_mark; --  书签收藏信息
+   truncate table role_world_boss_cd; --  boss cd
+   
+   warship_common库： 
+   truncate table alliance_chat; -- 联盟聊天
+   truncate table translate_alliance_chat; -- 联盟聊天翻译
+   truncate table alliance_science_record; -- 联盟捐献记录
+   truncate table event; -- 活动
+   truncate table event_data; -- 活动数据
+   truncate table promote_pay_ranking; -- 拉充消耗排行
+   truncate table promote_pay_ranking_info; -- 拉充消耗排行
+   truncate table ranking; -- 排行数据
+   truncate table wonder_occupy_record; -- 奇迹占领记录
+   truncate table world_boss; -- 世界boss
+   truncate table world_boss_point;
+   truncate table world_boss_ranking;
+   truncate table peculiar_genius_ranker; -- 异能区排行
+   truncate table peculiar_ranker_info; -- 异能区排行
+   
+6、sql修改合并后的数据
+   warship_passport库：
+   update global_role set state = 1 where server_id in(1012,1015,1019,1020) and state=2; --  设置为未建城
+   update sys_gateway_info set max_user = 0 where server_id in (1012,1015); -- 不可导量
+   update sys_gateway_info set server_name = 'World012(012,015,019,020)' where server_id = 1012;
+   update sys_gateway_info set server_name = 'World015(012,015,019,020)' where server_id = 1015;
+   update sys_gateway_info set server_name = 'World019(012,015,019,020)' where server_id = 1019;
+   update sys_gateway_info set server_name = 'World020(012,015,019,020)' where server_id = 1020;
+
+   warship库(主服:1012)
+   update role set city_x = -1,city_y = -1; --  清空主城坐标
+   update role set init_genius_ranking = 0; --  重置天才排行榜初始标识
+   update role_attibute set title = 0; -- 取消称号
+
+   warship_common库(主服:1012)
+   update alliance set tower_point_x = -1, tower_point_y = -1; -- 清空cvp
+   update common_config set is_combine = 1; -- 修改合服状态
+   update world_country_config set is_combine = 1; -- 修改合服状态
+   
+7、手工修改合并后的数据(谁大取谁)
+   common_config: 
+        select * from common_config;
+	联盟名称(alliance_name_id)和简称(alliance_tag_id)的配置需要取两个服较大的值(手工去)
+   
+    update common_config set alliance_name_id = (select * from ((select max(alliance_name_id) from `common_config` ) id)) where country_id = 1012;
+    update common_config set alliance_tag_id = (select * from ((select max(alliance_tag_id) from `common_config` ) id)) where country_id = 1012;
+
+   
+   world_country: 
+        select * from world_country;
+	    online_date取开服更久的那个服
+	    march_no,fight_no，取两者较大的一个(主服[9]的值，大于次服[10]，所以不用修改，反之则要修改)
+
+8、战斗脚本文件移到当前服 
+   次服：1015
+   #cd /data/log/fightscript/
+   #tar -czvf fightscript.tar.gz 1015/ 1020/
+  
+   
+   Login:
+   #scp 10.10.11.242:/data/log/fightscript/fightscript.tar.gz .                          //次服IP
+   #scp fightscript.tar.gz  10.10.5.78:/data/log/fightscript/                          //主服IP
+   #cd /data/log/fightscript/
+   
+   主服：
+   #tar -xvf fightscript.tar.gz
+   #ll
+   1015服目录 /data/log/fightscript/1015 /data/log/fightscript/1020
+   cp到1012服 /data/log/fightscript/
+   
+   
+   Login:
+   #scp -r 10.10.11.242:/data/log/log/1015/item .                           //次服IP
+   #scp -r item  10.10.5.78:/data/log/log/                                //主服IP
+   1015服目录 /data/log/log/1015/item   /data/log/log/1020/item
+   cp到1012服 /data/log/log/
+   
+9、启动(CombineServer.gd)
+   修改/root/rsync/script/game_debug_update.sh脚本(IP和日期)
+   CombineServer.gd 替换 1012服 /root/server/GD/china/CombineServer.gd 
+   启动服务器 sh start.sh
+
+10、GM清除世界资源(主服)
+    tail -200f GameServer/nohup.out       #主要查看主服是否连接上跨服，如下：
+    2018-05-09 04:35:43,311 Thread-6 INFO  UniverseWar-T3-gameWorldClient connect() UniverseWar-T3-gameWorldClient 10.10.3.136:24000 success
+    2018-05-09 04:35:43,344 NioProcessor-49 INFO  UniverseWar-T4-Handler session create,sid=8
+    2018-05-09 04:35:43,345 Thread-7 INFO  UniverseWar-T4-gameWorldClient connect() UniverseWar-T4-gameWorldClient 10.10.3.136:24001 success
+    2018-05-09 04:35:43,360 NioProcessor-56 INFO  UniverseWar-T5-Handler session create,sid=9
+    2018-05-09 04:35:43,361 Thread-8 INFO  UniverseWar-T5-gameWorldClient connect() UniverseWar-T5-gameWorldClient 10.10.3.136:24002 success
+
+    telnet 127.0.0.1 20000 输入3 回车  exit回车
+	
+	
+	主服的common库(主要查看第三个结果)
+	select role_id,role_name,city_x,city_y from warship_12.role where city_x > -1; -- 查看1012服角色城池状态
+        select id,name,tag,tower_point_x,tower_point_y from warship_common_12.alliance where tower_point_x > -1; -- 查看cvp状态
+	select use_type,sum(1) from warship_common_12.world_land where land_y != 2047 group by use_type; -- 查看世界中城池和资源状态
+	
+	select use_type,sum(1) from warship_common_12.world_land where land_y != 2047 group by use_type; -- 查看世界中城池和资源状态
+	0,4,7,8,9,101,500=30 只保留这些类型
+	
+	若有部分资源未清理，需要执行停服、启服、"tail -200f GameServer/nohup.out"、启动GM步骤
+	
+
+11、修改common_config中合服状态为非合服、修改world_country_config中合服状态为非合服(主服)
+   update common_config set is_combine = 0; -- 修改合服状态
+   update world_country_config set is_combine = 0; -- 修改合服状态
+
+12、修改1015服启动，取消自动启动
+    删除1015 /etc/rc.local中自动启动命令
+
+13、删除多余日志
+#合服(主/次服)均删
+rm -f /data/log/*/*2018-04*
+rm -f /data/log/*/push/*2018-04*
+rm -f /data/log/*/logserver_log/*2018-04*
+rm -f /data/log/*/error/*2018-04*
+rm -f /data/log/*/error_log/*2018-04*
+rm -f /data/log/*/event/*2018-04*
+rm -f /data/log/*/eventpoint/*2018-04*
+rm -f /data/log/*/peculiar/*2018-04*
+
+rm -f /data/log/log/*/AIRCRAFTEXP/*2018-04*
+rm -f /data/log/log/*/chip/*2018-04*
+rm -f /data/log/log/*/electric/*2018-04*
+rm -f /data/log/log/*/energy/*2018-04*
+rm -f /data/log/log/*/loyalty/*2018-04*
+rm -f /data/log/log/*/oil/*2018-04*
+rm -f /data/log/log/*/oper/*2018-04*
+rm -f /data/log/log/*/physicque/*2018-04*
+rm -f /data/log/log/*/uranium/*2018-04*
+
+rm -rf /data/log/fightscript/*/201712*
+rm -rf /data/log/fightscript/*/201801*
+rm -rf /data/log/fightscript/*/201802*
+rm -rf /data/log/fightscript/*/201803*
+
+#rm -f /data/log/log/*/*/*2018-03* 注解掉了
+
+
+find /data/log/log/*/*/ -name *.log -mtime +45 -exec rm -rf{} \; #删除这个目录下45天之前的文件
+
+
+
+14、修改小奇迹开启时间
+
+15、修改gm中邮件数据库指向
+    
+
+
+select * from passport.global_role where server_id in (1012,1015,1019,1020) and state = 2;  -- 查看passport中城池状态
+select role_id,role_name,city_x,city_y from warship_12.role where city_x > -1; -- 查看1012服角色城池状态
+select id,name,tag,tower_point_x,tower_point_y from warship_common_12.alliance where tower_point_x > -1; -- 查看cvp状态
+select use_type,sum(1) from warship_common_12.world_land where land_y != 2047 group by use_type; -- 查看世界中城池和资源状态
+0,4,7,8,9,101,500=30
+
+
+
+
+#################下面似乎没有用#####################
+
+
+
+
+
+iptables限制访问：
+成都公司-13层：118.116.15.43  222.209.233.205 222.211.162.222
+成都公司-14层：182.139.182.174
+北京公司：219.239.52.234
+
+
+1、放行源地址某IP的10002端口流量
+iptables -t filter -I INPUT 1 -s 219.239.52.234/32 -p tcp --dport 10002 -j ACCEPT
+iptables -t filter -I INPUT 2 -s 182.139.182.174/32 -p tcp --dport 10002 -j ACCEPT
+iptables -t filter -I INPUT 3 -s 222.209.233.205/32 -p tcp --dport 10002 -j ACCEPT
+iptables -t filter -I INPUT 4 -s 118.116.15.43/32 -p tcp --dport 10002 -j ACCEPT
+iptables -t filter -I INPUT 5 -p tcp --dport 10002 -j DROP
+
+
+2、放行源地址某IP的10002端口的建立连接
+iptables -I INPUT 1 -s 219.239.52.234/32  -p tcp --dport 10002 -m state --state NEW -j ACCEPT
+iptables -I INPUT 2 -s 182.139.182.174/32 -p tcp --dport 10002 -m state --state NEW -j ACCEPT
+iptables -I INPUT 3 -s 222.209.233.205/32 -p tcp --dport 10002 -m state --state NEW -j ACCEPT
+iptables -I INPUT 4 -s 118.116.15.43/32   -p tcp --dport 10002 -m state --state NEW -j ACCEPT
+或
+iptables -t filter -I INPUT 1 -m state --state NEW -j ACCEPT
+
+
+3、放行所有已建立连接的IP
+iptables -t filter -I INPUT 1 -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+
+4、放行源地址某IP的所有流量
+iptables –I INPUT 1 –s  219.239.52.234/32   –j ACCEPT
+iptables –I INPUT 2 –s  182.139.182.174/32  –j ACCEPT
+iptables –I INPUT 3 –s  222.209.233.205/32  –j ACCEPT
+iptables –I INPUT 4 –s  118.116.15.43/32    –j ACCEPT
+
+
+
+
+省略写法：
+iptables –I INPUT 1 –s  219.239.52.234/32   –j ACCEPT
+iptables –I INPUT 2 –s  182.139.182.174/32  –j ACCEPT
+iptables –I INPUT 3 –s  222.209.233.205/32  –j ACCEPT
+iptables –I INPUT 4 –s  118.116.15.43/32    –j ACCEPT
+iptables -t filter -I INPUT 1 -m state --state NEW -j ACCEPT
+
+
+
+模板：
+1022服warship库(主服)：
+truncate table role_book_mark; --  书签收藏信息
+truncate table role_world_boss_cd; --  boss cd
+
+update role set city_x = -1,city_y = -1; --  清空主城坐标
+update role set init_genius_ranking = 0; --  重置天才排行榜初始标识
+update role_attibute set title = 0; -- 取消称号
+
+
+1022服common库(主服)：
+select count(1) from world_march where state < 100;
+select FROM_UNIXTIME(create_time),t.* from world_march t where state < 100;
+
+truncate table alliance_chat; -- 联盟聊天
+truncate table translate_alliance_chat; -- 联盟聊天翻译
+truncate table alliance_science_record; -- 联盟捐献记录
+truncate table event; -- 活动
+truncate table event_data; -- 活动数据
+truncate table promote_pay_ranking; -- 拉充消耗排行
+truncate table promote_pay_ranking_info; -- 拉充消耗排行
+truncate table ranking; -- 排行数据
+truncate table wonder_occupy_record; -- 奇迹占领记录
+truncate table world_boss; -- 世界boss
+truncate table world_boss_point;
+truncate table world_boss_ranking;
+truncate table peculiar_genius_ranker; -- 异能区排行
+truncate table peculiar_ranker_info; -- 异能区排行
+
+update alliance set tower_point_x = -1, tower_point_y = -1; -- 清空cvp
+update common_config set is_combine = 1; -- 修改合服状态
+update world_country_config set is_combine = 1; -- 修改合服状态
+
+select * from common_config;
+
+select * from world_country;
+
+select role_id,role_name,city_x,city_y from warship_12.role where city_x > -1; -- 查看1022服角色城池状态
+select id,name,tag,tower_point_x,tower_point_y from warship_common_12.alliance where tower_point_x > -1; -- 查看cvp状态
+select use_type,sum(1) from warship_common_12.world_land where land_y != 2047 group by use_type; -- 查看世界中城池和资源状态
+
+select use_type,sum(1) from warship_common_12.world_land where land_y != 2047 group by use_type; -- 查看世界中城池和资源状态
+
+update common_config set is_combine = 0; -- 修改合服状态
+update world_country_config set is_combine = 0; -- 修改合服状态
+
+
+
+1027服common库(次服)：
+select count(1) from world_march where state < 100;
+select FROM_UNIXTIME(create_time),t.* from world_march t where state < 100;
+
+select * from world_country;
+
