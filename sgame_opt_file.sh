@@ -8,3 +8,7 @@ git add .
 git commit -m 'sgame_opt_file.sh更新提交'
 #正式提交
 git push -u origin master
+
+
+#拉取代码到本地（pull）
+git pull
