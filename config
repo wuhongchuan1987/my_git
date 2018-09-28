@@ -1,0 +1,14 @@
+[monit]
+file = /var/log/secure:/var/log/secure-20180921
+
+[interval]
+time = 10
+
+[email]
+subnowt = [WARN]-2MIN_NO_WRITE
+subnerr = [WARN]-NEW_ERROR
+receivers = wuhongchuan
+
+[dtalk]
+;MY
+ddid = 09ba4c8664ac023b30c1e423d55feb655725e53587edc22106b8862388ec6a61 
