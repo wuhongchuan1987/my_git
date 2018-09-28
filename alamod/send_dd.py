@@ -13,8 +13,6 @@ class Send_WN_DD(object):
 	def __init__(self):
 		self.f =  os.path.abspath(os.path.join(os.getcwd(), "..")) + '/alamod/staffinfo.txt'
 		self.bsdt = os.path.abspath(os.path.join(os.getcwd(), "..")) + '/alamod/bsdt_alarm.py'
-		#self.f = '/usr/lib64/python2.7/site-packages/mylib/alamod/staffinfo.txt'
-		#self.bsdt = '/usr/lib64/python2.7/site-packages/mylib/alamod/bsdt_alarm.py'
 		self.res = initalize.conf.get('email','receivers')
 		self.dd = initalize.conf.get('dtalk','ddid')
 
